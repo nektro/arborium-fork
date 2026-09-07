@@ -2,7 +2,7 @@ const NEWLINE = /\r?\n/;
 const WHITE_SPACE = /[\t\f\v ]+/;
 const ANYTHING = /[^\r\n]+/;
 
-module.exports = grammar({
+export default grammar({
   name: "diff",
 
   extras: ($) => [WHITE_SPACE],
@@ -25,7 +25,8 @@ module.exports = grammar({
         $.location,
         $.addition,
         $.deletion,
-        $.context
+        $.context,
+        $.comment
       ),
 
     block: ($) =>
@@ -64,16 +65,13 @@ module.exports = grammar({
         )
       ),
 
-    // FIXME: remove git assumption
-    command: ($) => iseq("diff", "--git", $.filename),
+    command: ($) => iseq("diff", alias(/[-\w]+/, $.argument), $.filename),
 
     file_change: ($) =>
-      iseq(
-        field("kind", choice("new", "deleted", "rename")),
-        choice(
-          seq("file", "mode", $.mode),
-          seq(choice("from", "to"), $.filename)
-        )
+      choice(
+        seq(choice("new", "deleted"), "file", "mode", $.mode),
+        seq(choice("new", "old"), "mode", $.mode),
+        seq("rename", choice("from", "to"), $.filename)
       ),
 
     binary_change: ($) =>
@@ -81,7 +79,7 @@ module.exports = grammar({
 
     index: ($) => iseq("index", $.commit, "..", $.commit, optional($.mode)),
 
-    similarity: ($) => iseq("similarity", "index", field("score", /\d+/), "%"),
+    similarity: ($) => iseq("similarity", "index", alias(/\d+/, $.score), "%"),
 
     old_file: ($) => iseq("---", $.filename),
     new_file: ($) => iseq("+++", $.filename),
@@ -105,6 +103,7 @@ module.exports = grammar({
       ),
 
     context: ($) => token(prec(-1, ANYTHING)),
+    comment: ($) => iseq("#", optional(ANYTHING)),
 
     linerange: ($) => /[-\+]\d+(,\d+)?/,
     filename: ($) => repeat1(/\S+/),
